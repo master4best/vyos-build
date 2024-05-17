@@ -194,7 +194,21 @@ def call(description=null, pkgList=null, buildCmd=null, changesPattern="**") {
                                     def PACKAGE = sh(returnStdout: true, script: "cat ${FILE} | grep Source ").trim().tokenize(' ').last()
                                     sh(script: "scp ${SSH_OPTS} ${FILE} ${SSH_REMOTE}:${SSH_DIR}")
                                     def FILENAME = FILE.toString().tokenize('/').last()
-                                    sh(script: "ssh ${SSH_OPTS} ${SSH_REMOTE} -t \"uncron-add 'reprepro -v -b ${VYOS_REPO_PATH} includedsc ${RELEASE} ${SSH_DIR}/${FILENAME}'\"")
+                                    def EXTRA_ARGS = ''
+                                    // Add generic Priority if missing
+                                    if (sh(returnStatus: true, script: "cat ${FILE} | grep Priority:") != 0) {
+                                        EXTRA_ARGS = EXTRA_ARGS + ' -P optional'
+                                    }
+                                    // Add generic Section if missing
+                                    if (sh(returnStatus: true, script: "cat ${FILE} | grep Priority:") != 0) {
+                                        EXTRA_ARGS = EXTRA_ARGS + ' -S misc'
+                                    }
+                                    // Ingore .dsc in git format
+                                    if (sh(returnStatus: true, script: "cat ${FILE} | grep Format: 3.0 (git)") != 0) {
+                                        echo "${FILE}: detected unsupported git format, skipping..."
+                                        return
+                                    }
+                                    sh(script: "ssh ${SSH_OPTS} ${SSH_REMOTE} -t \"uncron-add 'reprepro -v -b ${VYOS_REPO_PATH}${EXTRA_ARGS} includedsc ${RELEASE} ${SSH_DIR}/${FILENAME}'\"")
                                 }
                             }
 
