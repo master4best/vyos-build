@@ -165,7 +165,7 @@ def call(description=null, pkgList=null, buildCmd=null, changesPattern="**") {
                                 }
                             }
 
-                            files = findFiles(glob: '**/*.deb')
+                            files = findFiles(glob: '**/*.deb', excludes: '**/Makefile.deb')
                             if (files) {
                                 echo "Remove deprecated binary package(s) from the repository..."
                                 files.each { FILE ->
@@ -198,7 +198,7 @@ def call(description=null, pkgList=null, buildCmd=null, changesPattern="**") {
                                 }
                             }
 
-                            files = findFiles(glob: '**/*.deb')
+                            files = findFiles(glob: '**/*.deb', excludes: '**/Makefile.deb')
                             if (files) {
                                 echo "Uploading binary package(s) to the repository ..."
                                 files.each { FILE ->
