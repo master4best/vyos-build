@@ -642,6 +642,14 @@ RUN apt-get update && apt-get install -y \
       tcpdump \
       yajl-tools
 
+
+# Extra packages
+RUN apt-get update
+# For vyos-xe-guest-utilities
+RUN apt-get install -y golang
+# For vyos-strongswan
+RUN apt-get install -y libcurl4-openssl-dev
+
 #
 # fpm: a command-line program designed to help you build packages (e.g. deb)
 #
