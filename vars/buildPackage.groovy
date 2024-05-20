@@ -115,7 +115,13 @@ def call(description=null, pkgList=null, buildCmd=null, buildArm=false, changesP
                             }
                         }
                         when {
-                            equals expected: true, actual: buildArm
+                            beforeAgent true
+                            allOf {
+                                expression {
+                                    return env.ARM64_BUILD_DISABLED != 'true'
+                                }
+                                equals expected: true, actual: buildArm
+                            }
                         }
                         steps {
                             script {
