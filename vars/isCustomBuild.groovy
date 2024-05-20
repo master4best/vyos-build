@@ -22,5 +22,9 @@ def call() {
     def gitURI = 'git@github.com:vyos/' + getGitRepoName()
     def httpURI = 'https://github.com/vyos/' + getGitRepoName()
 
+	if (env.CUSTOM_BUILD_CHECK_DISABLED) {
+		return false
+	}
+
     return !((getGitRepoURL() == gitURI) || (getGitRepoURL() == httpURI)) || isPullRequest()
 }
