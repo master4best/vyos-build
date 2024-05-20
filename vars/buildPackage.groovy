@@ -251,11 +251,20 @@ def call(description=null, pkgList=null, buildCmd=null, buildArm=false, changesP
                                     def ARCH = ''
                                     if (PACKAGE_ARCH != 'all')
                                         ARCH = '-A ' + PACKAGE_ARCH
+                                    def EXTRA_ARGS = ''
+                                    // Add generic Priority if missing
+                                    if (sh(returnStatus: true, script: "dpkg-deb -f ${FILE} | grep Priority:") != 0) {
+                                        EXTRA_ARGS = EXTRA_ARGS + ' -P optional'
+                                    }
+                                    // Add generic Section if missing
+                                    if (sh(returnStatus: true, script: "dpkg-deb -f ${FILE} | grep Priority:") != 0) {
+                                        EXTRA_ARGS = EXTRA_ARGS + ' -S misc'
+                                    }
                                     sh(script: "scp ${SSH_OPTS} ${FILE} ${SSH_REMOTE}:${SSH_DIR}")
                                     // Packages like FRR produce their binary in a nested path e.g. packages/frr/frr-rpki-rtrlib-dbgsym_7.5_arm64.deb,
                                     // thus we will only extract the filename portion from FILE as the binary is scp'ed to SSH_DIR without any subpath.
                                     def FILENAME = FILE.toString().tokenize('/').last()
-                                    sh(script: "ssh ${SSH_OPTS} ${SSH_REMOTE} -t \"uncron-add 'reprepro -v -b ${VYOS_REPO_PATH} ${ARCH} includedeb ${RELEASE} ${SSH_DIR}/${FILENAME}'\"")
+                                    sh(script: "ssh ${SSH_OPTS} ${SSH_REMOTE} -t \"uncron-add 'reprepro -v -b ${VYOS_REPO_PATH}${EXTRA_ARGS} ${ARCH} includedeb ${RELEASE} ${SSH_DIR}/${FILENAME}'\"")
                                 }
                                 sh(script: "ssh ${SSH_OPTS} ${SSH_REMOTE} -t \"uncron-add 'reprepro -v -b ${VYOS_REPO_PATH} deleteunreferenced'\"")
                             }
