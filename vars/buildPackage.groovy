@@ -257,7 +257,7 @@ def call(description=null, pkgList=null, buildCmd=null, buildArm=false, changesP
                                         EXTRA_ARGS = EXTRA_ARGS + ' -P optional'
                                     }
                                     // Add generic Section if missing
-                                    if (sh(returnStatus: true, script: "dpkg-deb -f ${FILE} | grep Priority:") != 0) {
+                                    if (sh(returnStatus: true, script: "dpkg-deb -f ${FILE} | grep Section:") != 0) {
                                         EXTRA_ARGS = EXTRA_ARGS + ' -S misc'
                                     }
                                     sh(script: "scp ${SSH_OPTS} ${FILE} ${SSH_REMOTE}:${SSH_DIR}")
