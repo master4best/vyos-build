@@ -200,7 +200,7 @@ def call(description=null, pkgList=null, buildCmd=null, changesPattern="**") {
                                         EXTRA_ARGS = EXTRA_ARGS + ' -P optional'
                                     }
                                     // Add generic Section if missing
-                                    if (sh(returnStatus: true, script: "cat ${FILE} | grep Priority:") != 0) {
+                                    if (sh(returnStatus: true, script: "cat ${FILE} | grep Section:") != 0) {
                                         EXTRA_ARGS = EXTRA_ARGS + ' -S misc'
                                     }
                                     // Ingore .dsc in git format
