@@ -21,5 +21,9 @@ if [ -d $PATCH_DIR ]; then
 fi
 
 cd ${WIDE_SRC}
+
+echo "I: Apply workaround for unreliable cfparse.y make target"
+sed -i -E 's/\$\(MAKE\) -C/\$\(MAKE\) -B -C/' debian/rules
+
 echo "I: Build Debian Package"
 dpkg-buildpackage -uc -us -tc -b
