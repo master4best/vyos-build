@@ -22,8 +22,8 @@ fi
 
 cd ${WIDE_SRC}
 
-echo "I: Apply workaround for unreliable cfparse.y make target"
-sed -i -E 's/\$\(MAKE\) -C/\$\(MAKE\) -B -C/' debian/rules
+echo "I: Apply workaround for cfparse.y make target"
+rm y.tab.h
 
 echo "I: Build Debian Package"
 dpkg-buildpackage -uc -us -tc -b
