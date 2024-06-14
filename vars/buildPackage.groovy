@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-def call(description=null, pkgList=null, buildCmd=null, buildArm=false, changesPattern="**", buildLabel="ec2_amd64") {
+def call(description=null, pkgList=null, buildCmd=null, buildArm=false, changesPattern="**", buildLabel="ec2_amd64", changesPatternComparator="GLOB") {
     // - description: Arbitrary text to print on Jenkins Job Description
     //   instead of package name
     // - pkgList: Multiple packages can be build at once in a single Pipeline run
@@ -70,7 +70,7 @@ def call(description=null, pkgList=null, buildCmd=null, buildArm=false, changesP
             stage('Build Code') {
                 when {
                     anyOf {
-                        changeset pattern: changesPattern, caseSensitive: true
+                        changeset pattern: changesPattern, caseSensitive: true, comparator: changesPatternComparator
                         triggeredBy cause: "UserIdCause"
                     }
                 }
