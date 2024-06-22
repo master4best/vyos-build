@@ -68,6 +68,7 @@ options = {
    'build-by': ('Builder identifier (e.g. jrandomhacker@example.net)', get_default_build_by, None),
    'debian-mirror': ('Debian repository mirror for ISO build', lambda: build_defaults['debian_mirror'], None),
    'debian-security-mirror': ('Debian security updates mirror', lambda: build_defaults['debian_security_mirror'], None),
+   'debian-elts-mirror': ('Debian extended long term eupport (ELTS) mirror', None, None),
    'pbuilder-debian-mirror': ('Debian repository mirror for pbuilder env bootstrap', lambda: build_defaults['debian_mirror'], None),
    'vyos-mirror': ('VyOS package mirror', lambda: build_defaults["vyos_mirror"], None),
    'build-type': ('Build type, release or development', lambda: 'development', lambda x: x in ['release', 'development']),
@@ -109,6 +110,22 @@ for k, v in args.items():
 if (args['debian_mirror'] != build_defaults["debian_mirror"]) and \
    (args['pbuilder_debian_mirror'] == build_defaults["debian_mirror"]):
     args['pbuilder_debian_mirror'] = args['debian_mirror']
+
+# Handle ELTS mirror workaround
+if args['debian_elts_mirror']:
+    # purge any internal 'local.deb.vyos.io' repository
+    modified_repositories = []
+    for definition in build_defaults["additional_repositories"]:
+        if "local.deb.vyos.io" in definition:
+            continue
+        modified_repositories.append(definition)
+
+    # append custom ELTS repository as replacement
+    elts_definition = "deb %s buster main contrib non-free" % args['debian_elts_mirror']
+    modified_repositories.append(elts_definition)
+
+    # replace 'additional_repositories' with modified version
+    build_defaults["additional_repositories"] = modified_repositories
 
 # Version can only be set for release builds,
 # for dev builds it hardly makes any sense
