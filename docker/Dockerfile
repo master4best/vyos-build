@@ -58,6 +58,19 @@ RUN apt-get update && apt-get install -y \
       apt-utils \
       locales
 
+# Use the --build-arg ELTS_MIRROR=http://your-elts-mirror argument to specify your ELTS mirror
+ARG ELTS_MIRROR="none"
+RUN <<EOF
+set -e
+if [ "$ELTS_MIRROR" != "none" ]; then
+    apt-get install wget -y
+    wget --no-check-certificate https://deb.freexian.com/extended-lts/pool/main/f/freexian-archive-keyring/freexian-archive-keyring_2022.06.08_all.deb
+    dpkg -i freexian-archive-keyring_2022.06.08_all.deb
+    echo "deb $ELTS_MIRROR buster main contrib non-free" > /etc/apt/sources.list.d/elts.list
+    apt-get full-upgrade -y
+fi
+EOF
+
 RUN echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && locale-gen
 ENV LANG en_US.utf8
 
