@@ -21,6 +21,9 @@
 
 pipeline {
 	agent none
+	parameters {
+		string(name: 'ELTS_MIRROR', defaultValue: 'http://172.17.17.17:3142/deb.freexian.com/extended-lts', description: 'You can apt install apt-cacher-ng and then replace 172.17.17.17 with your local IP or provide your own ELTS mirror.')
+	}
 	options {
 		disableConcurrentBuilds()
 		timeout(time: 240, unit: 'MINUTES')
