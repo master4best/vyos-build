@@ -50,6 +50,10 @@ RUN echo "dash dash/sh boolean false" | debconf-set-selections && \
 
 RUN echo -e 'APT::Install-Recommends "0";\nAPT::Install-Suggests "0";' > /etc/apt/apt.conf.d/01norecommends
 
+# Add workaround for APT KEYEXPIRED
+COPY gpgvnoexpkeysig /usr/local/bin/gpgvnoexpkeysig
+RUN echo 'Apt::Key::gpgvcommand "/usr/local/bin/gpgvnoexpkeysig";' > /etc/apt/apt.conf.d/01gpgvnoexpkeysig
+
 # We now have Debian Bullseye (11) so cached images require the permit to
 # change the releaseinfo from stable -> oldstable
 RUN apt-get update --allow-releaseinfo-change
