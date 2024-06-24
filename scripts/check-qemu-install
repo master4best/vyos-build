@@ -72,6 +72,7 @@ parser.add_argument('--no-interfaces', help='Execute testsuite without interface
                 action='store_true', default=False)
 parser.add_argument('--configtest', help='Execute load/commit config tests',
 				action='store_true', default=False)
+parser.add_argument('--sandbox', help='Interactive sandbox mode', action='store_true', default=False)
 
 args = parser.parse_args()
 
@@ -371,6 +372,14 @@ try:
     else:
         c.sendline('sudo systemctl stop vyos-configd.service &> /dev/null')
     c.expect(op_mode_prompt)
+
+    if args.sandbox:
+        log.info("SANDBOX: now you are in control!")
+        c.sendline("")
+        c.logfile = None
+        c.interact()
+        log.info("SANDBOX: end")
+        exit(0)
 
     #################################################
     # Basic Configmode/Opmode switch
