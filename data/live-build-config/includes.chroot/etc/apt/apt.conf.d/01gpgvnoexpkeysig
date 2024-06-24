@@ -1,0 +1,1 @@
+Apt::Key::gpgvcommand "/usr/libexec/gpgvnoexpkeysig";
