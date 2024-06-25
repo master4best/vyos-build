@@ -373,11 +373,23 @@ try:
         c.sendline('sudo systemctl stop vyos-configd.service &> /dev/null')
     c.expect(op_mode_prompt)
 
+    #################################################
+    # Sandbox mode
+    #################################################
+
     if args.sandbox:
         log.info("SANDBOX: now you are in control!")
         c.sendline("")
         c.logfile = None
         c.interact()
+        if not args.keep:
+            log.info("SANDBOX: removing disk file: %s" % args.disk)
+            try:
+                os.remove(args.disk)
+                if diskname_raid:
+                    os.remove(diskname_raid)
+            except Exception:
+                pass
         log.info("SANDBOX: end")
         exit(0)
 
