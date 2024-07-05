@@ -19,16 +19,20 @@
 // @Library annotation is not an import statement!
 @Library('vyos-build@sagitta')_
 
-def pkgList = [
-    ['name': 'pam_tacplus-debian',
-     'scmCommit': '50c6fd7',
-     'scmUrl': 'https://github.com/kravietz/pam_tacplus-debian',
-     'buildCmd': '/bin/true'],
-    ['name': 'pam_tacplus',
-     'scmCommit': '7908a7faa0205beda9ea198bdd3aa37868be6da2',
-     'scmUrl': 'https://github.com/kravietz/pam_tacplus',
-     'buildCmd': 'cd ..; ./build.sh'],
-]
-
-// Start package build using library function from https://github.com/vyos/vyos-build
-buildPackage('pam_tacplus', pkgList, null, true, "**/packages/pam_tacplus/**")
+//
+// DISABLED: This is wrong version, the vyos-missing/packages/libnss-tacplus already builds the libpam-tacplus anyway.
+//
+// def pkgList = [
+//     ['name': 'pam_tacplus-debian',
+//      'scmCommit': '50c6fd7',
+//      'scmUrl': 'https://github.com/kravietz/pam_tacplus-debian',
+//      'buildCmd': '/bin/true'],
+//     ['name': 'pam_tacplus',
+//      'scmCommit': '7908a7faa0205beda9ea198bdd3aa37868be6da2',
+//      'scmUrl': 'https://github.com/kravietz/pam_tacplus',
+//      'buildCmd': 'cd ..; ./build.sh'],
+// ]
+//
+// // Start package build using library function from https://github.com/vyos/vyos-build
+// buildPackage('pam_tacplus', pkgList, null, true, "**/packages/pam_tacplus/**")
+//
