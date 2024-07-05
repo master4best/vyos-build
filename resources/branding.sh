@@ -4,6 +4,7 @@ set -e
 echo "NOT_VYOS: $NOT_VYOS"
 if [ "$NOT_VYOS" == "yes" ]; then
   if [[ "$JOB_NAME" == *"vyos-1x"* ]]; then
+    # sagitta
     echo "Removing branding for $JOB_NAME..."
     defaultMotd="./data/templates/login/default_motd.j2"
     if [ -f "$defaultMotd" ]; then
@@ -13,11 +14,20 @@ if [ "$NOT_VYOS" == "yes" ]; then
     if [ -f "$systemLoginBannerPy" ]; then
       sed -i 's/Welcome to VyOS/Welcome to NOTvyos/' "$systemLoginBannerPy"
     fi
-    systemLoginBannerPy2="./src/conf_mode/system-login-banner.py"
-    if [ -f "$systemLoginBannerPy" ]; then
-      sed -i 's/Welcome to VyOS/Welcome to NOTvyos/' "$systemLoginBannerPy"
-    fi
     vyosRouter="./src/init/vyos-router"
+    if [ -f "$vyosRouter" ]; then
+      sed -i 's/VyOS Config/NOTvyos Config/' "$vyosRouter"
+      sed -i 's/VyOS router/NOTvyos router/' "$vyosRouter"
+    fi
+    # equuleus
+    systemLoginBannerPy2="./src/conf_mode/system-login-banner.py"
+    if [ -f "$systemLoginBannerPy2" ]; then
+      sed -i 's/Welcome to VyOS/Welcome to NOTvyos/' "$systemLoginBannerPy2"
+    fi
+  elif [[ "$JOB_NAME" == *"vyatta-cfg"* ]]; then
+    # equuleus
+    echo "Removing branding for $JOB_NAME..."
+    vyosRouter="./scripts/init/vyos-router"
     if [ -f "$vyosRouter" ]; then
       sed -i 's/VyOS Config/NOTvyos Config/' "$vyosRouter"
       sed -i 's/VyOS router/NOTvyos router/' "$vyosRouter"
