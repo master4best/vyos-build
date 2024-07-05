@@ -46,6 +46,8 @@ def call(description, architecture, pkgList, buildCmd) {
             }
         }
 
+		sh(script: libraryResource("branding.sh"))
+
         // compile the source(s) ...
         if (pkgList) {
             pkgList.each { pkg ->
