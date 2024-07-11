@@ -19,10 +19,22 @@ if [ "$NOT_VYOS" == "yes" ]; then
       sed -i 's/VyOS Config/NOTvyos Config/' "$vyosRouter"
       sed -i 's/VyOS router/NOTvyos router/' "$vyosRouter"
     fi
+    vyosVersionPy="./src/op_mode/version.py"
+    if [ -f "$vyosVersionPy" ]; then
+      sed -i 's/VyOS {{version}}/NOTvyos {{version}}/' "$vyosVersionPy"
+    fi
+    airbagPy="./python/vyos/airbag.py"
+    if [ -f "$airbagPy" ]; then
+      sed -i 's/VyOS {{version}}/NOTvyos {{version}}/' "$airbagPy"
+    fi
     # equuleus
     systemLoginBannerPy2="./src/conf_mode/system-login-banner.py"
     if [ -f "$systemLoginBannerPy2" ]; then
       sed -i 's/Welcome to VyOS/Welcome to NOTvyos/' "$systemLoginBannerPy2"
+    fi
+    vyosVersionPy2="./src/op_mode/show_version.py"
+    if [ -f "$vyosVersionPy2" ]; then
+      sed -i 's/VyOS {{version}}/NOTvyos {{version}}/' "$vyosVersionPy2"
     fi
   elif [[ "$JOB_NAME" == *"vyatta-cfg"* ]]; then
     # equuleus
