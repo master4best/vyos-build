@@ -44,7 +44,7 @@ def call(description=null, pkgList=null, buildCmd=null, buildArm=false, changesP
                 }
                 when {
                     anyOf {
-                        changeset "${changesPattern}"
+                        changeset pattern: changesPattern, caseSensitive: true, comparator: changesPatternComparator
                         triggeredBy cause: "UserIdCause"
                     }
                 }
@@ -140,7 +140,7 @@ def call(description=null, pkgList=null, buildCmd=null, buildArm=false, changesP
             stage("Finalize") {
                 when {
                     anyOf {
-                        changeset pattern: changesPattern, caseSensitive: true
+                        changeset pattern: changesPattern, caseSensitive: true, comparator: changesPatternComparator
                         triggeredBy cause: "UserIdCause"
                     }
                 }
