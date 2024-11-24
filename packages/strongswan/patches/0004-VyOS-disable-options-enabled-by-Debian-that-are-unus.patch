@@ -81,8 +81,8 @@ index 2fed1f10f..fa0d21a0c 100755
 @@ -3,6 +3,15 @@ export DEB_LDFLAGS_MAINT_APPEND=-Wl,-O1
  #export DEB_LDFLAGS_MAINT_APPEND=-Wl,--as-needed -Wl,-O1 -Wl,-z,defs
  export DEB_BUILD_MAINT_OPTIONS=hardening=+all
- 
-+CONFIGUREARGS_VYOS := --disable-warnings \
+
++CONFIGUREARGS_VYOS := --disable-warnings --enable-python-eggs \
 +               --disable-ldap \
 +               --disable-led \
 +               --disable-nm \
@@ -96,11 +96,11 @@ index 2fed1f10f..fa0d21a0c 100755
  		--enable-agent \
 @@ -88,7 +97,7 @@ ifeq ($(DEB_HOST_ARCH_OS),kfreebsd)
  deb_systemdsystemunitdir = $(shell pkg-config --variable=systemdsystemunitdir systemd | sed s,^/,,)
- 
+
  override_dh_auto_configure:
 -	dh_auto_configure -- $(CONFIGUREARGS)
 +	dh_auto_configure -- $(CONFIGUREARGS) $(CONFIGUREARGS_VYOS)
- 
+
  override_dh_auto_clean:
  	dh_auto_clean
 diff --git a/debian/strongswan-nm.install b/debian/strongswan-nm.install
@@ -110,6 +110,6 @@ index b0c05d94f..e69de29bb 100644
 @@ -1,2 +0,0 @@
 -usr/lib/ipsec/charon-nm
 -usr/share/dbus-1/system.d/nm-strongswan-service.conf
--- 
+--
 2.30.2
 
