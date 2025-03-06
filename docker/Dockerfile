@@ -102,6 +102,7 @@ RUN apt-get update && apt-get install -y \
       python3-flake8 \
       python3-autopep8 \
       python3-tomli \
+      python3-tomli-w \
       yq \
       debootstrap \
       live-build \
@@ -135,7 +136,7 @@ RUN dpkg-reconfigure ca-certificates; \
 # Installing OCAML needed to compile libvyosconfig
 RUN curl https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh \
       --output /tmp/opam_install.sh --retry 10 --retry-delay 5 && \
-    sed -i 's/read BINDIR/BINDIR=""/' /tmp/opam_install.sh && sh /tmp/opam_install.sh && \
+    sed -i 's/read -r BINDIR/BINDIR=""/' /tmp/opam_install.sh && sh /tmp/opam_install.sh && \
     opam init --root=/opt/opam --comp=${OCAML_VERSION} --disable-sandboxing --no-setup
 
 RUN eval $(opam env --root=/opt/opam --set-root) && \
@@ -177,6 +178,18 @@ RUN wget -O /tmp/open-vmdk-master.zip https://github.com/vmware/open-vmdk/archiv
     unzip -d /tmp/ /tmp/open-vmdk-master.zip && \
     cd /tmp/open-vmdk-master/ && make && make install
 
+# Packages need for build live-build
+RUN apt-get update && apt-get install -y \
+      cpio
+
+COPY patches/live-build/0001-save-package-info.patch /tmp/0001-save-package-info.patch
+
+RUN git clone https://salsa.debian.org/live-team/live-build.git /tmp/live-build && \
+    cd /tmp/live-build && git checkout debian/1%20240810 && \
+    patch -p1 < /tmp/0001-save-package-info.patch && \
+    dch -n "Applying fix for save package info" && \
+    dpkg-buildpackage -us -uc && \
+    dpkg -i ../live-build*.deb
 #
 # live-build: building in docker fails with mounting /proc | /sys
 #
@@ -194,7 +207,6 @@ RUN wget https://salsa.debian.org/klausenbusk-guest/debootstrap/commit/a9a603b17
     sudo dpkg -i ../debootstrap*.deb
 
 # Packages needed for Linux Kernel
-# gnupg2 is required by Jenkins for the TAR verification
 # cmake required by accel-ppp
 RUN apt-get update && apt-get install -y \
       cmake \

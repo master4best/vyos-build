@@ -21,7 +21,7 @@ checkiso:
 .PHONY: test
 .ONESHELL:
 test: checkiso
-	scripts/check-qemu-install --debug --configd --match="$(MATCH)" --uefi build/live-image-amd64.hybrid.iso
+	scripts/check-qemu-install --debug --configd --match="$(MATCH)" --smoketest --uefi build/live-image-amd64.hybrid.iso $(filter-out $@,$(MAKECMDGOALS))
 
 .PHONY: test-no-interfaces
 .ONESHELL:
@@ -36,27 +36,27 @@ test-interfaces: checkiso
 .PHONY: testc
 .ONESHELL:
 testc: checkiso
-	scripts/check-qemu-install --debug --configd --configtest build/live-image-amd64.hybrid.iso
+	scripts/check-qemu-install --debug --configd --configtest build/live-image-amd64.hybrid.iso $(filter-out $@,$(MAKECMDGOALS))
 
 .PHONY: testraid
 .ONESHELL:
 testraid: checkiso
-	scripts/check-qemu-install --debug --configd --raid --configtest build/live-image-amd64.hybrid.iso
-
-.PHONY: qemu-live
-.ONESHELL:
-qemu-live: checkiso
-	scripts/check-qemu-install --qemu-cmd build/live-image-amd64.hybrid.iso
-
-.PHONE: oci
-.ONESHELL:
-oci: checkiso
-	scripts/iso-to-oci build/live-image-amd64.hybrid.iso
+	scripts/check-qemu-install --debug --configd --raid build/live-image-amd64.hybrid.iso $(filter-out $@,$(MAKECMDGOALS))
 
 .PHONY: testtpm
 .ONESHELL:
 testtpm: checkiso
-	scripts/check-qemu-install --debug --tpmtest build/live-image-amd64.hybrid.iso
+	scripts/check-qemu-install --debug --tpmtest build/live-image-amd64.hybrid.iso $(filter-out $@,$(MAKECMDGOALS))
+
+.PHONY: qemu-live
+.ONESHELL:
+qemu-live: checkiso
+	scripts/check-qemu-install --qemu-cmd --uefi build/live-image-amd64.hybrid.iso $(filter-out $@,$(MAKECMDGOALS))
+
+.PHONY: oci
+.ONESHELL:
+oci: checkiso
+	scripts/iso-to-oci build/live-image-amd64.hybrid.iso
 
 .PHONY: clean
 .ONESHELL:

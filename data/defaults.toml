@@ -14,7 +14,8 @@ vyos_mirror = "https://packages.vyos.net/repositories/circinus"
 vyos_branch = "circinus"
 release_train = "circinus"
 
-kernel_version = "6.6.54"
+kernel_version = "6.6.66"
+kernel_flavor = "vyos"
 bootloaders = "syslinux,grub-efi"
 
 squashfs_compression_type = "xz -Xbcj x86 -b 256k -always-use-fragments -no-recovery"

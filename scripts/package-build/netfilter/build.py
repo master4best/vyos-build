@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (C) 2024 VyOS maintainers and contributors
+# Copyright (C) 2024-2025 VyOS maintainers and contributors
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 or later as
@@ -36,20 +36,15 @@ def ensure_dependencies(dependencies: list) -> None:
     run(['sudo', 'apt-get', 'install', '-y'] + dependencies, check=True)
 
 
-def apply_patches(repo_dir: Path, patch_dir: Path, package_name: str) -> None:
+def apply_patches(repo_dir: Path, patch_dir: Path) -> None:
     """Apply patches from the patch directory to the repository"""
-    package_patch_dir = patch_dir / package_name
-    if package_patch_dir.exists() and package_patch_dir.is_dir():
-        patches = list(package_patch_dir.glob('*'))
-    else:
-        print(f"I: No patch directory found for {package_name} in {patch_dir}")
+    if not patch_dir.exists() or not patch_dir.is_dir():
+        print(f"I: Patch directory {patch_dir} does not exist, skipping patch application")
         return
 
-    # Filter out directories from patches list
-    patches = [patch for patch in patches if patch.is_file()]
-
+    patches = sorted(patch_dir.glob('*'))
     if not patches:
-        print(f"I: No patches found in {package_patch_dir}")
+        print(f"I: No patches found in {patch_dir}")
         return
 
     debian_patches_dir = repo_dir / 'debian/patches'
@@ -59,17 +54,9 @@ def apply_patches(repo_dir: Path, patch_dir: Path, package_name: str) -> None:
     with series_file.open('a') as series:
         for patch in patches:
             patch_dest = debian_patches_dir / patch.name
-            try:
-                # Ensure the patch file exists before copying
-                if patch.exists():
-                    shutil.copy(patch, patch_dest)
-                    series.write(patch.name + '\n')
-                    print(f"I: Applied patch: {patch.name}")
-                else:
-                    print(f"W: Patch file {patch} not found, skipping")
-            except FileNotFoundError:
-                print(f"W: Patch file {patch} not found, skipping")
-
+            shutil.copy(patch, patch_dest)
+            series.write(patch.name + '\n')
+            print(f"I: Applied patch: {patch.name}")
 
 def prepare_package(repo_dir: Path, install_data: str) -> None:
     """Prepare a package"""
@@ -87,12 +74,11 @@ def prepare_package(repo_dir: Path, install_data: str) -> None:
         raise
 
 
-def build_package(package: dict, dependencies: list, patch_dir: Path) -> None:
+def build_package(package: list, patch_dir: Path) -> None:
     """Build a package from the repository
 
     Args:
-        package (dict): Package information
-        dependencies (list): List of additional dependencies
+        package (list): List of Packages from toml
         patch_dir (Path): Directory containing patches
     """
     repo_name = package['name']
@@ -106,11 +92,43 @@ def build_package(package: dict, dependencies: list, patch_dir: Path) -> None:
         # Check out the specific commit
         run(['git', 'checkout', package['commit_id']], cwd=repo_dir, check=True)
 
-        # Ensure dependencies
-        ensure_dependencies(dependencies)
+        # The `pre_build_hook` is an optional configuration defined in `package.toml`.
+        # It executes after the repository is checked out and before the build process begins.
+        # This hook allows you to perform preparatory tasks, such as creating directories,
+        # copying files, or running custom scripts/commands.
+        #
+        # Usage:
+        # - Single command:
+        #     pre_build_hook = "echo 'Hello Pre-Build-Hook'"
+        #
+        # - Multi-line commands:
+        #     pre_build_hook = """
+        #       mkdir -p ../hello/vyos
+        #       mkdir -p ../vyos
+        #       cp example.txt ../vyos
+        #     """
+        #
+        # - Combination of commands and scripts:
+        #     pre_build_hook = "ls -l; ./script.sh"
+        pre_build_hook = package.get('pre_build_hook', '')
+        if pre_build_hook:
+            try:
+                print(f'I: execute pre_build_hook for the package "{repo_name}"')
+                run(pre_build_hook, cwd=repo_dir, check=True, shell=True)
+            except CalledProcessError as e:
+                print(e)
+                print(f"I: pre_build_hook failed for the {repo_name}")
+                raise
 
         # Apply patches if any
-        apply_patches(repo_dir, patch_dir, repo_name)
+        if (repo_dir / 'patches'):
+            apply_patches(repo_dir, patch_dir / repo_name)
+
+        # Sanitize the commit ID and build a tarball for the package
+        commit_id_sanitized = package['commit_id'].replace('/', '_')
+        tarball_name = f"{repo_name}_{commit_id_sanitized}.tar.gz"
+        run(['tar', '-czf', tarball_name, '-C', str(repo_dir.parent), repo_name], check=True)
+        print(f"I: Tarball created: {tarball_name}")
 
         # Prepare the package if required
         if package.get('prepare_package', False):
@@ -125,8 +143,14 @@ def build_package(package: dict, dependencies: list, patch_dir: Path) -> None:
                 print(f"Failed to build package {repo_name}: {e}")
 
         # Build the package, check if we have build_cmd in the package.toml
-        build_cmd = package.get('build_cmd', 'dpkg-buildpackage -uc -us -tc -b')
-        run(build_cmd, cwd=repo_dir, check=True, shell=True)
+        try:
+            build_cmd = package.get('build_cmd', 'dpkg-buildpackage -uc -us -tc -F')
+            run(build_cmd, cwd=repo_dir, check=True, shell=True)
+        except CalledProcessError as e:
+            print(e)
+            print("I: Source packages build failed, ignoring - building binaries only")
+            build_cmd = package.get('build_cmd', 'dpkg-buildpackage -uc -us -tc -b')
+            run(build_cmd, cwd=repo_dir, check=True, shell=True)
 
     except CalledProcessError as e:
         print(f"Failed to build package {repo_name}: {e}")
@@ -142,7 +166,7 @@ def cleanup_build_deps(repo_dir: Path) -> None:
         if repo_dir.exists():
             for file in glob.glob(str(repo_dir / '*build-deps*.deb')):
                 os.remove(file)
-            print("Cleaned up build dependency packages")
+            print("I: Cleaned up build dependency packages")
     except Exception as e:
         print(f"Error cleaning up build dependencies: {e}")
 
@@ -176,11 +200,14 @@ if __name__ == '__main__':
     packages = config['packages']
     patch_dir = Path(args.patch_dir)
 
-    for package in packages:
-        dependencies = package.get('dependencies', {}).get('packages', [])
+    # Load global dependencies
+    global_dependencies = config.get('dependencies', {}).get('packages', [])
+    if global_dependencies:
+        ensure_dependencies(global_dependencies)
 
+    for package in packages:
         # Build the package
-        build_package(package, dependencies, patch_dir)
+        build_package(package, patch_dir)
 
         # Clean up build dependency packages after build
         cleanup_build_deps(Path(package['name']))

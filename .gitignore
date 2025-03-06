@@ -4,7 +4,6 @@ packer_build/*
 packer_cache/*
 key/*
 packages/*
-!packages/*/
 testinstall*.img
 *.qcow2
 *.tar

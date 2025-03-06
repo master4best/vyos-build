@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (C) 2019-2023, VyOS maintainers and contributors
+# Copyright (C) 2019-2025, VyOS maintainers and contributors
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 or later as
@@ -43,14 +43,15 @@ import traceback
 import logging
 import re
 import tomli
+import json
 
 from io import BytesIO
-from io import StringIO
 from datetime import datetime
 
 EXCEPTION = 0
 now = datetime.now()
 tpm_folder = '/tmp/vyos_tpm_test'
+qemu_name = 'VyOS-QEMU'
 
 parser = argparse.ArgumentParser(description='Install and start a test VyOS vm.')
 parser.add_argument('iso', help='ISO file to install')
@@ -66,11 +67,13 @@ parser.add_argument('--debug', help='Send all debug output to stdout',
 parser.add_argument('--logfile', help='Log to file')
 parser.add_argument('--match', help='Smoketests to run')
 parser.add_argument('--uefi', help='Boot using UEFI', action='store_true', default=False)
+parser.add_argument('--vnc', help='Enable VNC', action='store_true', default=False)
 parser.add_argument('--raid', help='Perform a RAID-1 install', action='store_true', default=False)
-parser.add_argument('--no-kvm', help='Disable use of kvm', action='store_true', default=False)
 parser.add_argument('--configd', help='Execute testsuite with config daemon', action='store_true',
 				default=False)
 parser.add_argument('--no-interfaces', help='Execute testsuite without interface tests to save time',
+                action='store_true', default=False)
+parser.add_argument('--smoketest', help='Execute script based CLI smoketests',
                 action='store_true', default=False)
 parser.add_argument('--configtest', help='Execute load/commit config tests',
 				action='store_true', default=False)
@@ -78,12 +81,21 @@ parser.add_argument('--tpmtest', help='Execute TPM encrypted config tests',
                 action='store_true', default=False)
 parser.add_argument('--qemu-cmd', help='Only generate QEMU launch command',
                 action='store_true', default=False)
-
+parser.add_argument('--cpu', help='Set QEMU CPU', type=int, default=2)
+parser.add_argument('--memory', help='Set QEMU memory', type=int, default=4)
 
 args = parser.parse_args()
 
+# This is what we requested the build to contain
 with open('data/defaults.toml', 'rb') as f:
     vyos_defaults = tomli.load(f)
+
+# This is what we got from the build
+with open('build/manifest.json', 'rb') as f:
+    manifest = json.load(f)
+
+vyos_version = manifest['build_config']['version']
+vyos_codename = manifest['build_config']['release_train']
 
 class StreamToLogger(object):
     """
@@ -97,14 +109,11 @@ class StreamToLogger(object):
 
     def write(self, buf):
         self.linebuf += buf
-        #print('.')
         while b'\n' in self.linebuf:
             f = self.linebuf.split(b'\n', 1)
             if len(f) == 2:
                 self.logger.debug(self.ansi_escape.sub('', f[0].decode(errors="replace").rstrip()))
                 self.linebuf = f[1]
-            #print(f)
-
 
     def flush(self):
         pass
@@ -116,13 +125,7 @@ def get_half_cpus():
         cpu /= 2
     return int(cpu)
 
-def get_qemu_cmd(name, enable_kvm, enable_uefi, disk_img, raid=None, iso_img=None, tpm=False):
-    kvm = "-enable-kvm"
-    cpu = "-cpu host"
-    if not enable_kvm:
-        kvm = "--no-kvm"
-        cpu = ""
-
+def get_qemu_cmd(name, enable_uefi, disk_img, raid=None, iso_img=None, tpm=False, vnc_enabled=False):
     uefi = ""
     uuid = "f48b60b2-e6ad-49ef-9d09-4245d0585e52"
     if enable_uefi:
@@ -130,16 +133,15 @@ def get_qemu_cmd(name, enable_kvm, enable_uefi, disk_img, raid=None, iso_img=Non
         name = f'{name}-UEFI'
         uuid = 'd27cf29e-4419-4407-8f82-dc73d1acd184'
 
-    bootindex = '1'
+    vga = '-vga none'
+    if vnc_enabled:
+        vga = ' -vga virtio -vnc :0'
+
     cdrom = ""
     if iso_img:
-        cdrom = f' -boot d' \
-                f' -drive file={iso_img},format=raw,if=none,media=cdrom,id=drive-cd1,readonly=on' \
+        cdrom = f' -drive file={iso_img},format=raw,if=none,media=cdrom,id=drive-cd1,readonly=on' \
                 f' -device ahci,id=achi0' \
-                f' -device ide-cd,bus=achi0.0,drive=drive-cd1,id=cd1,bootindex={bootindex}'
-
-        # Set regular harddisk bootindex to 2 as we boot from a CDROM drive
-        bootindex = '2'
+                f' -device ide-cd,bus=achi0.0,drive=drive-cd1,id=cd1,bootindex=10'
 
     # test using half of the available CPUs on the system
     cpucount = get_half_cpus()
@@ -147,17 +149,19 @@ def get_qemu_cmd(name, enable_kvm, enable_uefi, disk_img, raid=None, iso_img=Non
     macbase = '52:54:00:00:00'
     cmd = f'qemu-system-x86_64 \
         -name "{name}" \
-        -smp {cpucount},sockets=1,cores={cpucount},threads=1 \
+        -smp {args.cpu},sockets=1,cores={args.cpu},threads=1 \
         -cpu host \
         {uefi} \
-        -m 4G \
+        -m {args.memory}G \
         -vga none \
         -nographic \
+        {vga} \
         -machine accel=kvm \
         -uuid {uuid} \
-        {cpu} \
+        -cpu host \
         {cdrom} \
-        {kvm} \
+        -enable-kvm \
+        -monitor unix:/tmp/qemu-monitor-socket-{disk_img},server,nowait \
         -netdev user,id=n0,net=192.0.2.0/24,dhcpstart=192.0.2.101,dns=192.0.2.10 -device virtio-net-pci,netdev=n0,mac={macbase}:00,romfile="" \
         -netdev user,id=n1 -device virtio-net-pci,netdev=n1,mac={macbase}:01,romfile="" \
         -netdev user,id=n2 -device virtio-net-pci,netdev=n2,mac={macbase}:02,romfile="" \
@@ -168,13 +172,11 @@ def get_qemu_cmd(name, enable_kvm, enable_uefi, disk_img, raid=None, iso_img=Non
         -netdev user,id=n7 -device virtio-net-pci,netdev=n7,mac={macbase}:07,romfile="" \
         -device virtio-scsi-pci,id=scsi0 \
         -drive format=raw,file={disk_img},if=none,media=disk,id=drive-hd1,readonly=off \
-        -device scsi-hd,bus=scsi0.0,drive=drive-hd1,id=hd1,bootindex={bootindex}'
+        -device scsi-hd,bus=scsi0.0,drive=drive-hd1,id=hd1,bootindex=1'
 
-    # dynamically increment bootindex - required for RAID system
-    bootindex = str(int(bootindex) + 1)
     if raid:
         cmd += f' -drive format=raw,file={raid},if=none,media=disk,id=drive-hd2,readonly=off' \
-               f' -device scsi-hd,bus=scsi0.0,drive=drive-hd2,id=hd2,bootindex={bootindex}'
+               f' -device scsi-hd,bus=scsi0.0,drive=drive-hd2,id=hd2,bootindex=2'
 
     if tpm:
         cmd += f' -chardev socket,id=chrtpm,path={tpm_folder}/swtpm-sock' \
@@ -249,14 +251,9 @@ if not os.path.isfile(args.iso):
     log.error('Unable to find iso image to install')
     sys.exit(1)
 
-if args.no_kvm:
-    log.error('KVM forced off by command line')
-    kvm=False
-elif not os.path.exists('/dev/kvm'):
+if not os.path.exists('/dev/kvm'):
     log.error('KVM not enabled on host, proceeding with software emulation')
-    kvm=False
-else:
-    kvm=True
+    sys.exit(1)
 
 # Creating diskimage!!
 diskname_raid = None
@@ -295,18 +292,22 @@ def start_swtpm():
     return tpm_process
 
 if args.qemu_cmd:
-    tmp = get_qemu_cmd('TESTVM', kvm, args.uefi, args.disk, diskname_raid, args.iso)
+    tmp = get_qemu_cmd(qemu_name, args.uefi, args.disk, raid=diskname_raid, iso_img=args.iso, vnc_enabled=args.vnc)
     os.system(tmp)
     exit(0)
 
 test_timeout = 3 *3600 # 3 hours (in seconds)
 tpm_process = None
 try:
+    # Start TPM emulator
+    if args.tpmtest:
+        tpm_process = start_swtpm()
+
     #################################################
     # Installing image to disk
     #################################################
     log.info('Installing system')
-    cmd = get_qemu_cmd('TESTVM', kvm, args.uefi, args.disk, diskname_raid, args.iso)
+    cmd = get_qemu_cmd(qemu_name, args.uefi, args.disk, raid=diskname_raid, tpm=args.tpmtest, iso_img=args.iso, vnc_enabled=args.vnc)
     log.debug(f'Executing command: {cmd}')
     c = pexpect.spawn(cmd, logfile=stl, timeout=60)
 
@@ -361,24 +362,21 @@ try:
         c.expect('\nWhich file would you like as boot config?.*')
         c.sendline('')
 
-    log.info('system installed, shutting down')
+    c.expect(op_mode_prompt)
+    log.info('system installed, rebooting')
+    c.sendline('reboot now')
 
     #################################################
-    # Powering down installer
+    # Removing CD installation media
     #################################################
-    shutdownVM(c, log, 'Shutting down installation system')
-    c.close()
-
-    if args.tpmtest:
-        tpm_process = start_swtpm()
+    time.sleep(2)
+    log.info('eject installation media')
+    os.system(f'echo "eject -f drive-cd1" | socat - unix-connect:/tmp/qemu-monitor-socket-{args.disk}')
 
     #################################################
     # Booting installed system
     #################################################
     log.info('Booting installed system')
-    cmd = get_qemu_cmd('TESTVM', kvm, args.uefi, args.disk, diskname_raid, tpm=args.tpmtest)
-    log.debug(f'Executing command: {cmd}')
-    c = pexpect.spawn(cmd, logfile=stl)
 
     #################################################
     # Logging into VyOS system
@@ -410,6 +408,7 @@ try:
     # Basic Configmode/Opmode switch
     #################################################
     log.info('Basic CLI configuration mode test')
+
     c.sendline('configure')
     c.expect(cfg_mode_prompt)
     c.sendline('exit')
@@ -417,7 +416,7 @@ try:
     c.sendline('show version')
     c.expect(op_mode_prompt)
     c.sendline('show version kernel')
-    c.expect(f'{vyos_defaults["kernel_version"]}-{vyos_defaults["architecture"]}-vyos')
+    c.expect(f'{vyos_defaults["kernel_version"]}-{vyos_defaults["kernel_flavor"]}')
     c.expect(op_mode_prompt)
     c.sendline('show version frr')
     c.expect(op_mode_prompt)
@@ -425,6 +424,30 @@ try:
     c.expect(op_mode_prompt)
     c.sendline('systemd-detect-virt')
     c.expect('kvm')
+    c.expect(op_mode_prompt)
+    c.sendline('show system cpu')
+    c.expect(op_mode_prompt)
+    c.sendline('show system memory')
+    c.expect(op_mode_prompt)
+
+    #################################################
+    # Verify /etc/os-release via lsb_release
+    #################################################
+    c.sendline('lsb_release --short --id 2>/dev/null')
+    c.expect('VyOS')
+    c.sendline('lsb_release --short --release 2>/dev/null')
+    c.expect(vyos_version)
+    c.sendline('lsb_release --short --codename 2>/dev/null')
+    c.expect(vyos_codename)
+
+    # Ensure ephemeral key is loaded
+    vyos_kernel_key = 'VyOS build time autogenerated kernel key'
+    c.sendline(f'show log kernel | match "{vyos_kernel_key}"')
+    c.expect(f'.*{vyos_kernel_key}.*')
+    c.expect(op_mode_prompt)
+
+    # Inform smoketest about this environment
+    c.sendline('touch /tmp/vyos.smoketests.hint')
     c.expect(op_mode_prompt)
 
     #################################################
@@ -488,21 +511,8 @@ try:
         c.sendline('exit')
         c.expect(op_mode_prompt)
 
-        # Shutdown VM
-        shutdownVM(c, log, 'Shutdown VM after TPM encryption')
-
-        # Shutdown kills swtpm
-        tpm_process.join()
-        tpm_process.close()
-
-        # Start emulator again
-        tpm_process = start_swtpm()
-
-        # Booting back into VM
-        log.info('Booting TPM-backed system')
-        cmd = get_qemu_cmd('TESTVM', kvm, args.uefi, args.disk, diskname_raid, tpm=args.tpmtest)
-        log.debug(f'Executing command: {cmd}')
-        c = pexpect.spawn(cmd, logfile=stl)
+        log.info('system installed, rebooting')
+        c.sendline('reboot now')
 
         try:
             c.expect('The highlighted entry will be executed automatically in', timeout=10)
@@ -535,7 +545,7 @@ try:
 
         # Booting back into VM
         log.info('Booting system with cleared TPM')
-        cmd = get_qemu_cmd('TESTVM', kvm, args.uefi, args.disk, diskname_raid, tpm=args.tpmtest)
+        cmd = get_qemu_cmd(qemu_name, args.uefi, args.disk, raid=diskname_raid, tpm=args.tpmtest, vnc_enabled=args.vnc)
         log.debug(f'Executing command: {cmd}')
         c = pexpect.spawn(cmd, logfile=stl)
 
@@ -587,7 +597,7 @@ try:
         # Booting RAID-1 system with one missing disk
         #################################################
         log.info('Booting RAID-1 system')
-        cmd = get_qemu_cmd('TESTVM', kvm, args.uefi, args.disk, diskname_raid)
+        cmd = get_qemu_cmd(qemu_name, args.uefi, args.disk, raid=diskname_raid, vnc_enabled=args.vnc)
 
         # We need to swap boot indexes to boot from second harddisk so we can
         # recreate the RAID on the first disk
@@ -637,7 +647,7 @@ try:
         shutdownVM(c, log, f'Shutdown VM and start from recovered RAID member "{args.disk}"')
 
         log.info('Booting RAID-1 system')
-        cmd = get_qemu_cmd('TESTVM', kvm, args.uefi, args.disk, diskname_raid)
+        cmd = get_qemu_cmd(qemu_name, args.uefi, args.disk, raid=diskname_raid, vnc_enabled=args.vnc)
         log.debug(f'Executing command: {cmd}')
         c = pexpect.spawn(cmd, logfile=stl)
 
@@ -646,7 +656,7 @@ try:
         c.sendline('cat /proc/mdstat')
         c.expect(op_mode_prompt)
 
-    elif not args.configtest:
+    elif args.smoketest:
         # run default smoketest suite
         if args.match:
             # Remove tests that we don't want to run
@@ -682,7 +692,7 @@ try:
             raise Exception("Smoketest-failed, please look into debug output")
 
     # else, run configtest suite
-    else:
+    elif args.configtest:
         log.info('Adding a legacy WireGuard default keypair for migrations')
         c.sendline('sudo mkdir -p /config/auth/wireguard/default')
         c.expect(op_mode_prompt)
@@ -707,7 +717,7 @@ try:
         if i==0:
             raise Exception('Invalid command detected')
         elif i==1:
-            tmp = '(W)hy (T)he (F)ace? VyOS smoketest not found!'
+            tmp = 'VyOS smoketest not found!'
             log.error(tmp)
             raise Exception(tmp)
 
@@ -720,6 +730,9 @@ try:
             tmp = 'Configtest failed :/ - check debug output'
             log.error(tmp)
             raise Exception(tmp)
+
+    else:
+        log.info('No testcase selected!')
 
     shutdownVM(c, log, 'Powering off system')
     c.close()
@@ -764,3 +777,5 @@ if EXCEPTION:
     log.error('Hmm... system got an exception while processing.')
     log.error('The ISO image is not considered usable!')
     sys.exit(1)
+
+sys.exit(0)
